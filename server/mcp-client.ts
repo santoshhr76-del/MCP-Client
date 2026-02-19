@@ -64,12 +64,29 @@ class McpClientManager {
       const transportUrl = new URL(this.serverUrl);
       const headers: Record<string, string> = {};
       if (this.authToken) {
-        headers["Authorization"] = `Bearer ${this.authToken}`;
+        const token = this.authToken.trim();
+        headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
+          ? token
+          : `Bearer ${token}`;
       }
 
       this.transport = new SSEClientTransport(transportUrl, {
         requestInit: {
           headers,
+        },
+        fetch: async (url, init) => {
+          const merged = new Headers(init?.headers);
+          for (const [key, value] of Object.entries(headers)) {
+            merged.set(key, value);
+          }
+          let fetchUrl = new URL(String(url));
+          if (init?.method === "POST" && !fetchUrl.pathname.endsWith("/")) {
+            fetchUrl.pathname += "/";
+          }
+          return fetch(fetchUrl, {
+            ...init,
+            headers: merged,
+          });
         },
       });
 
