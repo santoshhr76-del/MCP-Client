@@ -17,9 +17,46 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/mcp/connect", async (_req, res) => {
+  app.get("/api/mcp/config", async (_req, res) => {
     try {
-      const status = await mcpClient.connect();
+      const config = mcpClient.getConfig();
+      res.json(config);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/mcp/config", async (req, res) => {
+    try {
+      const { serverUrl, authToken } = req.body;
+
+      if (serverUrl && typeof serverUrl === "string") {
+        try {
+          new URL(serverUrl);
+        } catch {
+          return res.status(400).json({ message: "Invalid server URL format" });
+        }
+        mcpClient.setServerUrl(serverUrl);
+      }
+      if (authToken !== undefined) {
+        mcpClient.setAuthToken(authToken || null);
+      }
+
+      if (mcpClient.isConnected()) {
+        await mcpClient.disconnect();
+      }
+
+      const config = mcpClient.getConfig();
+      res.json(config);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/mcp/connect", async (req, res) => {
+    try {
+      const { serverUrl, authToken } = req.body || {};
+      const status = await mcpClient.connect(serverUrl, authToken);
       res.json(status);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

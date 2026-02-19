@@ -21,17 +21,37 @@ class McpClientManager {
   private transport: SSEClientTransport | null = null;
   private tools: McpToolInfo[] = [];
   private serverUrl: string;
+  private authToken: string | null = null;
   private serverName?: string;
   private serverVersion?: string;
 
   constructor() {
     this.serverUrl = process.env.MCP_SERVER_URL || "https://tallyprime-mcp-mqup2h4wzq-el.a.run.app/sse";
+    this.authToken = process.env.MCP_AUTH_TOKEN || null;
   }
 
-  async connect(): Promise<McpConnectionState> {
+  setServerUrl(url: string): void {
+    this.serverUrl = url;
+  }
+
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+  }
+
+  getConfig(): { serverUrl: string; hasAuthToken: boolean } {
+    return {
+      serverUrl: this.serverUrl,
+      hasAuthToken: !!this.authToken,
+    };
+  }
+
+  async connect(url?: string, token?: string): Promise<McpConnectionState> {
     if (this.client) {
       await this.disconnect();
     }
+
+    if (url) this.serverUrl = url;
+    if (token !== undefined) this.authToken = token || null;
 
     try {
       log("Connecting to MCP server: " + this.serverUrl, "mcp");
@@ -41,7 +61,30 @@ class McpClientManager {
         { capabilities: {} }
       );
 
-      this.transport = new SSEClientTransport(new URL(this.serverUrl));
+      const transportUrl = new URL(this.serverUrl);
+      const headers: Record<string, string> = {};
+      if (this.authToken) {
+        headers["Authorization"] = `Bearer ${this.authToken}`;
+      }
+
+      this.transport = new SSEClientTransport(transportUrl, {
+        requestInit: {
+          headers,
+        },
+        eventSourceInit: {
+          fetch: (url: string | URL | Request, init?: RequestInit) => {
+            const mergedInit = {
+              ...init,
+              headers: {
+                ...(init?.headers || {}),
+                ...headers,
+              },
+            };
+            return fetch(url, mergedInit);
+          },
+        },
+      });
+
       await this.client.connect(this.transport);
 
       log("Connected to MCP server successfully", "mcp");
@@ -68,7 +111,6 @@ class McpClientManager {
       try {
         await this.transport.close();
       } catch (e) {
-        // ignore
       }
     }
     this.client = null;

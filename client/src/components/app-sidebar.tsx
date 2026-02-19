@@ -13,13 +13,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Wrench, History, Server } from "lucide-react";
+import { LayoutDashboard, Wrench, History, Server, Settings } from "lucide-react";
 import type { McpConnectionStatus } from "@shared/schema";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Tools", url: "/tools", icon: Wrench },
   { title: "History", url: "/history", icon: History },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {

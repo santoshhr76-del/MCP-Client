@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import ToolsPage from "@/pages/tools";
 import HistoryPage from "@/pages/history";
+import SettingsPage from "@/pages/settings";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/tools" component={ToolsPage} />
       <Route path="/history" component={HistoryPage} />
+      <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
   );
