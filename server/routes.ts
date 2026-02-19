@@ -1,16 +1,128 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { mcpClient } from "./mcp-client";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  app.get("/api/mcp/status", async (_req, res) => {
+    try {
+      const status = mcpClient.getStatus();
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/mcp/connect", async (_req, res) => {
+    try {
+      const status = await mcpClient.connect();
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/mcp/disconnect", async (_req, res) => {
+    try {
+      await mcpClient.disconnect();
+      res.json({ connected: false });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/mcp/tools", async (_req, res) => {
+    try {
+      if (!mcpClient.isConnected()) {
+        return res.status(400).json({ message: "Not connected to MCP server" });
+      }
+      const tools = mcpClient.getTools();
+      res.json(tools);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/mcp/tools/refresh", async (_req, res) => {
+    try {
+      if (!mcpClient.isConnected()) {
+        return res.status(400).json({ message: "Not connected to MCP server" });
+      }
+      const tools = await mcpClient.refreshTools();
+      res.json(tools);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/mcp/execute", async (req, res) => {
+    try {
+      if (!mcpClient.isConnected()) {
+        return res.status(400).json({ message: "Not connected to MCP server" });
+      }
+
+      const { toolName, arguments: args } = req.body;
+
+      if (!toolName || typeof toolName !== "string") {
+        return res.status(400).json({ message: "toolName is required" });
+      }
+
+      try {
+        const result = await mcpClient.executeTool(toolName, args || {});
+
+        const execution = await storage.createToolExecution({
+          toolName,
+          arguments: args || {},
+          result,
+          status: "success",
+          error: null,
+        });
+
+        res.json({ status: "success", result, executionId: execution.id });
+      } catch (execError: any) {
+        const execution = await storage.createToolExecution({
+          toolName,
+          arguments: args || {},
+          result: null,
+          status: "error",
+          error: execError.message,
+        });
+
+        res.json({
+          status: "error",
+          error: execError.message,
+          executionId: execution.id,
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/mcp/history", async (_req, res) => {
+    try {
+      const executions = await storage.getToolExecutions();
+      res.json(executions);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/mcp/history/:id", async (req, res) => {
+    try {
+      const execution = await storage.getToolExecution(req.params.id);
+      if (!execution) {
+        return res.status(404).json({ message: "Execution not found" });
+      }
+      res.json(execution);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   return httpServer;
 }
