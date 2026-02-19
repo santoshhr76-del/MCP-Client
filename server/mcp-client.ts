@@ -24,6 +24,8 @@ class McpClientManager {
   private authToken: string | null = null;
   private serverName?: string;
   private serverVersion?: string;
+  private reconnecting = false;
+  private lastSuccessfulCall = 0;
 
   constructor() {
     this.serverUrl = process.env.MCP_SERVER_URL || "https://tallyprime-mcp-mqup2h4wzq-el.a.run.app/sse";
@@ -45,6 +47,40 @@ class McpClientManager {
     };
   }
 
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.authToken) {
+      const token = this.authToken.trim();
+      headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
+        ? token
+        : `Bearer ${token}`;
+    }
+    return headers;
+  }
+
+  private createTransport(): SSEClientTransport {
+    const transportUrl = new URL(this.serverUrl);
+    const headers = this.buildHeaders();
+
+    return new SSEClientTransport(transportUrl, {
+      requestInit: { headers },
+      fetch: async (url, init) => {
+        const merged = new Headers(init?.headers);
+        for (const [key, value] of Object.entries(headers)) {
+          merged.set(key, value);
+        }
+        let fetchUrl = new URL(String(url));
+        if (init?.method === "POST" && !fetchUrl.pathname.endsWith("/")) {
+          fetchUrl.pathname += "/";
+        }
+        return fetch(fetchUrl, {
+          ...init,
+          headers: merged,
+        });
+      },
+    });
+  }
+
   async connect(url?: string, token?: string): Promise<McpConnectionState> {
     if (this.client) {
       await this.disconnect();
@@ -61,38 +97,22 @@ class McpClientManager {
         { capabilities: {} }
       );
 
-      const transportUrl = new URL(this.serverUrl);
-      const headers: Record<string, string> = {};
-      if (this.authToken) {
-        const token = this.authToken.trim();
-        headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
-          ? token
-          : `Bearer ${token}`;
-      }
+      this.transport = this.createTransport();
 
-      this.transport = new SSEClientTransport(transportUrl, {
-        requestInit: {
-          headers,
-        },
-        fetch: async (url, init) => {
-          const merged = new Headers(init?.headers);
-          for (const [key, value] of Object.entries(headers)) {
-            merged.set(key, value);
-          }
-          let fetchUrl = new URL(String(url));
-          if (init?.method === "POST" && !fetchUrl.pathname.endsWith("/")) {
-            fetchUrl.pathname += "/";
-          }
-          return fetch(fetchUrl, {
-            ...init,
-            headers: merged,
-          });
-        },
-      });
+      this.transport.onerror = (error) => {
+        log(`SSE transport error: ${error.message}`, "mcp");
+        this.handleConnectionLost();
+      };
+
+      this.transport.onclose = () => {
+        log("SSE transport closed", "mcp");
+        this.handleConnectionLost();
+      };
 
       await this.client.connect(this.transport);
 
       log("Connected to MCP server successfully", "mcp");
+      this.lastSuccessfulCall = Date.now();
 
       const serverInfo = this.client.getServerVersion();
       this.serverName = serverInfo?.name || "Tally MCP Server";
@@ -108,6 +128,31 @@ class McpClientManager {
       this.client = null;
       this.transport = null;
       throw new Error(`Failed to connect: ${error.message}`);
+    }
+  }
+
+  private handleConnectionLost(): void {
+    if (this.reconnecting) return;
+    log("Connection lost, marking as disconnected", "mcp");
+    this.client = null;
+    this.transport = null;
+  }
+
+  private async reconnect(): Promise<boolean> {
+    if (this.reconnecting) return false;
+    this.reconnecting = true;
+    try {
+      log("Attempting automatic reconnect...", "mcp");
+      this.client = null;
+      this.transport = null;
+      await this.connect();
+      log("Reconnected successfully", "mcp");
+      return true;
+    } catch (error: any) {
+      log(`Reconnect failed: ${error.message}`, "mcp");
+      return false;
+    } finally {
+      this.reconnecting = false;
     }
   }
 
@@ -139,6 +184,7 @@ class McpClientManager {
         inputSchema: t.inputSchema,
       }));
       log(`Discovered ${this.tools.length} tools`, "mcp");
+      this.lastSuccessfulCall = Date.now();
       return this.tools;
     } catch (error: any) {
       log(`Failed to list tools: ${error.message}`, "mcp");
@@ -156,9 +202,34 @@ class McpClientManager {
     try {
       const result = await this.client.callTool({ name: toolName, arguments: args });
       log(`Tool ${toolName} executed successfully`, "mcp");
+      this.lastSuccessfulCall = Date.now();
       return result;
     } catch (error: any) {
       log(`Tool ${toolName} execution failed: ${error.message}`, "mcp");
+
+      const isStaleConnection =
+        error.message.includes("-32602") ||
+        error.message.includes("-32001") ||
+        error.message.includes("timed out") ||
+        error.message.includes("not connected") ||
+        error.message.includes("connection");
+
+      if (isStaleConnection) {
+        log("Detected stale connection, attempting reconnect and retry...", "mcp");
+        const reconnected = await this.reconnect();
+        if (reconnected && this.client) {
+          try {
+            const retryResult = await this.client.callTool({ name: toolName, arguments: args });
+            log(`Tool ${toolName} succeeded after reconnect`, "mcp");
+            this.lastSuccessfulCall = Date.now();
+            return retryResult;
+          } catch (retryError: any) {
+            log(`Tool ${toolName} failed again after reconnect: ${retryError.message}`, "mcp");
+            throw retryError;
+          }
+        }
+      }
+
       throw error;
     }
   }
