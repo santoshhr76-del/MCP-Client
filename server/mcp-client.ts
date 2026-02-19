@@ -71,18 +71,6 @@ class McpClientManager {
         requestInit: {
           headers,
         },
-        eventSourceInit: {
-          fetch: (url: string | URL | Request, init?: RequestInit) => {
-            const mergedInit = {
-              ...init,
-              headers: {
-                ...(init?.headers || {}),
-                ...headers,
-              },
-            };
-            return fetch(url, mergedInit);
-          },
-        },
       });
 
       await this.client.connect(this.transport);

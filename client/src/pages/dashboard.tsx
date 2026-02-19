@@ -52,7 +52,14 @@ export default function Dashboard() {
       toast({ title: "Connected", description: "Successfully connected to MCP server" });
     },
     onError: (err: Error) => {
-      toast({ title: "Connection Failed", description: err.message, variant: "destructive" });
+      const is401 = err.message.includes("401");
+      toast({
+        title: "Connection Failed",
+        description: is401
+          ? "Authentication required. Go to Settings to add your auth token."
+          : err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -116,14 +123,14 @@ export default function Dashboard() {
                   <Wrench className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Available Tools</p>
-                  <p className="font-medium" data-testid="text-tool-count">
+                  <span className="text-sm text-muted-foreground block">Available Tools</span>
+                  <span className="font-medium block" data-testid="text-tool-count">
                     {toolsQuery.isLoading ? (
                       <Skeleton className="h-5 w-8 inline-block" />
                     ) : (
                       toolsQuery.data?.length ?? 0
                     )}
-                  </p>
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -136,14 +143,14 @@ export default function Dashboard() {
                   <History className="h-5 w-5 text-accent-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Executions</p>
-                  <p className="font-medium" data-testid="text-execution-count">
+                  <span className="text-sm text-muted-foreground block">Executions</span>
+                  <span className="font-medium block" data-testid="text-execution-count">
                     {historyQuery.isLoading ? (
                       <Skeleton className="h-5 w-8 inline-block" />
                     ) : (
                       historyQuery.data?.length ?? 0
                     )}
-                  </p>
+                  </span>
                 </div>
               </div>
             </CardContent>
