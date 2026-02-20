@@ -26,7 +26,9 @@ class McpClientManager {
   private serverName?: string;
   private serverVersion?: string;
   private reconnecting = false;
+  private reconnectPromise: Promise<boolean> | null = null;
   private lastSuccessfulCall = 0;
+  private hasConnectedOnce = false;
 
   constructor() {
     this.serverUrl = process.env.MCP_SERVER_URL || "https://tallyprime-mcp-mqup2h4wzq-el.a.run.app/sse";
@@ -108,17 +110,18 @@ class McpClientManager {
 
       this.transport.onerror = (error) => {
         log(`SSE transport error: ${error.message}`, "mcp");
-        this.handleConnectionLost();
+        this.markTransportDead();
       };
 
       this.transport.onclose = () => {
         log("SSE transport closed", "mcp");
-        this.handleConnectionLost();
+        this.markTransportDead();
       };
 
       await this.client.connect(this.transport);
 
       log("Connected to MCP server successfully", "mcp");
+      this.hasConnectedOnce = true;
       this.lastSuccessfulCall = Date.now();
 
       const serverInfo = this.client.getServerVersion();
@@ -138,28 +141,77 @@ class McpClientManager {
     }
   }
 
-  private handleConnectionLost(): void {
+  private markTransportDead(): void {
     if (this.reconnecting) return;
-    log("Connection lost, marking as disconnected", "mcp");
+    log("Transport closed/errored, will reconnect on next call", "mcp");
     this.client = null;
     this.transport = null;
   }
 
+  private async ensureConnected(): Promise<void> {
+    if (this.client) return;
+    if (!this.hasConnectedOnce) {
+      throw new Error("Not connected to MCP server");
+    }
+    log("Connection lost, auto-reconnecting...", "mcp");
+    const success = await this.reconnect();
+    if (!success || !this.client) {
+      throw new Error("Failed to reconnect to MCP server");
+    }
+  }
+
   private async reconnect(): Promise<boolean> {
-    if (this.reconnecting) return false;
+    if (this.reconnecting && this.reconnectPromise) {
+      log("Reconnect already in progress, waiting...", "mcp");
+      return this.reconnectPromise;
+    }
     this.reconnecting = true;
+    this.reconnectPromise = this.doReconnect();
+    try {
+      return await this.reconnectPromise;
+    } finally {
+      this.reconnecting = false;
+      this.reconnectPromise = null;
+    }
+  }
+
+  private async doReconnect(): Promise<boolean> {
     try {
       log("Attempting automatic reconnect...", "mcp");
       this.client = null;
       this.transport = null;
-      await this.connect();
+
+      this.client = new Client(
+        { name: "tally-mcp-client", version: "1.0.0" },
+        { capabilities: {} }
+      );
+
+      this.transport = this.createTransport();
+
+      this.transport.onerror = (error) => {
+        log(`SSE transport error: ${error.message}`, "mcp");
+        this.markTransportDead();
+      };
+
+      this.transport.onclose = () => {
+        log("SSE transport closed", "mcp");
+        this.markTransportDead();
+      };
+
+      await this.client.connect(this.transport);
+      this.lastSuccessfulCall = Date.now();
+
+      const serverInfo = this.client.getServerVersion();
+      this.serverName = serverInfo?.name || "Tally MCP Server";
+      this.serverVersion = serverInfo?.version || "unknown";
+
       log("Reconnected successfully", "mcp");
       return true;
     } catch (error: any) {
       log(`Reconnect failed: ${error.message}`, "mcp");
+      this.client = null;
+      this.transport = null;
       return false;
-    } finally {
-      this.reconnecting = false;
     }
   }
 
@@ -175,16 +227,17 @@ class McpClientManager {
     this.tools = [];
     this.serverName = undefined;
     this.serverVersion = undefined;
+    this.hasConnectedOnce = false;
     log("Disconnected from MCP server", "mcp");
   }
 
   async refreshTools(): Promise<McpToolInfo[]> {
     if (!this.client) {
-      throw new Error("Not connected to MCP server");
+      await this.ensureConnected();
     }
 
     try {
-      const result = await this.client.listTools();
+      const result = await this.client!.listTools();
       this.tools = (result.tools || []).map((t: any) => ({
         name: t.name,
         description: t.description,
@@ -200,9 +253,7 @@ class McpClientManager {
   }
 
   async executeTool(toolName: string, args: Record<string, any> = {}): Promise<any> {
-    if (!this.client) {
-      throw new Error("Not connected to MCP server");
-    }
+    await this.ensureConnected();
 
     const mergedArgs = { ...args };
     if (this.tallyUrl && !mergedArgs.tally_url) {
@@ -212,7 +263,7 @@ class McpClientManager {
     log(`Executing tool: ${toolName} with args: ${JSON.stringify(mergedArgs)}`, "mcp");
 
     try {
-      const result = await this.client.callTool({ name: toolName, arguments: mergedArgs });
+      const result = await this.client!.callTool({ name: toolName, arguments: mergedArgs });
       log(`Tool ${toolName} executed successfully`, "mcp");
       this.lastSuccessfulCall = Date.now();
       return result;
@@ -226,7 +277,7 @@ class McpClientManager {
         error.message.includes("not connected") ||
         error.message.includes("connection");
 
-      if (isStaleConnection) {
+      if (isStaleConnection && this.hasConnectedOnce) {
         log("Detected stale connection, attempting reconnect and retry...", "mcp");
         const reconnected = await this.reconnect();
         if (reconnected && this.client) {
@@ -252,7 +303,7 @@ class McpClientManager {
 
   getStatus(): McpConnectionState {
     return {
-      connected: this.client !== null,
+      connected: this.hasConnectedOnce,
       serverUrl: this.serverUrl,
       serverName: this.serverName,
       serverVersion: this.serverVersion,
@@ -261,7 +312,7 @@ class McpClientManager {
   }
 
   isConnected(): boolean {
-    return this.client !== null;
+    return this.hasConnectedOnce;
   }
 }
 
