@@ -22,6 +22,7 @@ class McpClientManager {
   private tools: McpToolInfo[] = [];
   private serverUrl: string;
   private authToken: string | null = null;
+  private tallyUrl: string = "";
   private serverName?: string;
   private serverVersion?: string;
   private reconnecting = false;
@@ -30,6 +31,7 @@ class McpClientManager {
   constructor() {
     this.serverUrl = process.env.MCP_SERVER_URL || "https://tallyprime-mcp-mqup2h4wzq-el.a.run.app/sse";
     this.authToken = process.env.MCP_AUTH_TOKEN || null;
+    this.tallyUrl = process.env.TALLY_URL || "";
   }
 
   setServerUrl(url: string): void {
@@ -40,10 +42,15 @@ class McpClientManager {
     this.authToken = token;
   }
 
-  getConfig(): { serverUrl: string; hasAuthToken: boolean } {
+  setTallyUrl(url: string): void {
+    this.tallyUrl = url;
+  }
+
+  getConfig(): { serverUrl: string; hasAuthToken: boolean; tallyUrl: string } {
     return {
       serverUrl: this.serverUrl,
       hasAuthToken: !!this.authToken,
+      tallyUrl: this.tallyUrl,
     };
   }
 
@@ -197,10 +204,15 @@ class McpClientManager {
       throw new Error("Not connected to MCP server");
     }
 
-    log(`Executing tool: ${toolName} with args: ${JSON.stringify(args)}`, "mcp");
+    const mergedArgs = { ...args };
+    if (this.tallyUrl && !mergedArgs.tally_url) {
+      mergedArgs.tally_url = this.tallyUrl;
+    }
+
+    log(`Executing tool: ${toolName} with args: ${JSON.stringify(mergedArgs)}`, "mcp");
 
     try {
-      const result = await this.client.callTool({ name: toolName, arguments: args });
+      const result = await this.client.callTool({ name: toolName, arguments: mergedArgs });
       log(`Tool ${toolName} executed successfully`, "mcp");
       this.lastSuccessfulCall = Date.now();
       return result;
@@ -219,7 +231,7 @@ class McpClientManager {
         const reconnected = await this.reconnect();
         if (reconnected && this.client) {
           try {
-            const retryResult = await this.client.callTool({ name: toolName, arguments: args });
+            const retryResult = await this.client.callTool({ name: toolName, arguments: mergedArgs });
             log(`Tool ${toolName} succeeded after reconnect`, "mcp");
             this.lastSuccessfulCall = Date.now();
             return retryResult;

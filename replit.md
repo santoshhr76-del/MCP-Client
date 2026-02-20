@@ -30,6 +30,10 @@ A web-based MCP (Model Context Protocol) client that connects to a cloud-hosted 
 
 ## Environment Variables
 - `MCP_SERVER_URL` - URL of the Tally MCP server SSE endpoint
+- `MCP_AUTH_TOKEN` - Bearer token for MCP server authentication
+- `TALLY_URL` - Default TallyPrime Gateway URL (can also be set via Settings UI)
 
 ## Recent Changes
+- 2026-02-20: Added global TallyPrime URL setting (auto-injected into all tool calls, hidden from tool parameter forms)
+- 2026-02-20: Auto-reconnect and stale SSE connection handling
 - 2026-02-19: Initial build of Tally MCP Client with dashboard, tools explorer, and history views

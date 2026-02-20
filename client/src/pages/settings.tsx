@@ -16,17 +16,20 @@ import {
   KeyRound,
   CheckCircle2,
   Info,
+  Server,
 } from "lucide-react";
 
 interface McpConfig {
   serverUrl: string;
   hasAuthToken: boolean;
+  tallyUrl: string;
 }
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [serverUrl, setServerUrl] = useState("");
   const [authToken, setAuthToken] = useState("");
+  const [tallyUrl, setTallyUrl] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
   const configQuery = useQuery<McpConfig>({
@@ -36,12 +39,13 @@ export default function SettingsPage() {
   useEffect(() => {
     if (configQuery.data) {
       setServerUrl(configQuery.data.serverUrl);
+      setTallyUrl(configQuery.data.tallyUrl || "");
       setHasChanges(false);
     }
   }, [configQuery.data]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: { serverUrl: string; authToken?: string }) => {
+    mutationFn: async (data: { serverUrl: string; authToken?: string; tallyUrl?: string }) => {
       const res = await apiRequest("POST", "/api/mcp/config", data);
       return res.json();
     },
@@ -51,6 +55,20 @@ export default function SettingsPage() {
       setHasChanges(false);
       setAuthToken("");
       toast({ title: "Settings saved", description: "Configuration updated successfully" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const saveTallyUrlMutation = useMutation({
+    mutationFn: async (data: { tallyUrl: string }) => {
+      const res = await apiRequest("POST", "/api/mcp/config", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mcp/config"] });
+      toast({ title: "Tally URL saved", description: "TallyPrime Gateway URL updated" });
     },
     onError: (err: Error) => {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
@@ -73,6 +91,18 @@ export default function SettingsPage() {
       data.authToken = authToken;
     }
     saveMutation.mutate(data);
+  };
+
+  const handleSaveTallyUrl = () => {
+    if (tallyUrl.trim()) {
+      try {
+        new URL(tallyUrl);
+      } catch {
+        toast({ title: "Validation error", description: "Please enter a valid URL (e.g., http://localhost:9000)", variant: "destructive" });
+        return;
+      }
+    }
+    saveTallyUrlMutation.mutate({ tallyUrl: tallyUrl.trim() });
   };
 
   return (
@@ -163,6 +193,62 @@ export default function SettingsPage() {
                   <Save className="h-4 w-4 mr-1.5" />
                 )}
                 Save Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              TallyPrime Gateway
+            </CardTitle>
+          </CardHeader>
+          <Separator />
+          <CardContent className="pt-4 space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="tally-url" className="flex items-center gap-1.5">
+                TallyPrime URL
+                <Badge variant="secondary" className="text-[10px]">Global Default</Badge>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                The URL of your TallyPrime instance (e.g., http://localhost:9000 or https://xyz.trycloudflare.com). This will be automatically sent with every tool execution.
+              </p>
+              <Input
+                id="tally-url"
+                placeholder="http://localhost:9000"
+                value={tallyUrl}
+                onChange={(e) => setTallyUrl(e.target.value)}
+                data-testid="input-tally-url"
+              />
+              {configQuery.data?.tallyUrl && (
+                <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-3 w-3" />
+                  TallyPrime URL is configured: {configQuery.data.tallyUrl}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-muted/50 rounded-md p-3 flex items-start gap-2">
+              <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                This URL is automatically included as the <code className="bg-muted px-1 py-0.5 rounded text-[11px]">tally_url</code> parameter in every tool call, so you don't need to enter it each time.
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveTallyUrl}
+                disabled={saveTallyUrlMutation.isPending}
+                data-testid="button-save-tally-url"
+              >
+                {saveTallyUrlMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1.5" />
+                )}
+                Save Tally URL
               </Button>
             </div>
           </CardContent>

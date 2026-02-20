@@ -28,7 +28,7 @@ export async function registerRoutes(
 
   app.post("/api/mcp/config", async (req, res) => {
     try {
-      const { serverUrl, authToken } = req.body;
+      const { serverUrl, authToken, tallyUrl } = req.body;
 
       if (serverUrl && typeof serverUrl === "string") {
         try {
@@ -41,8 +41,12 @@ export async function registerRoutes(
       if (authToken !== undefined) {
         mcpClient.setAuthToken(authToken || null);
       }
+      if (tallyUrl !== undefined) {
+        mcpClient.setTallyUrl(tallyUrl || "");
+      }
 
-      if (mcpClient.isConnected()) {
+      const connectionConfigChanged = serverUrl || authToken !== undefined;
+      if (connectionConfigChanged && mcpClient.isConnected()) {
         await mcpClient.disconnect();
       }
 

@@ -34,15 +34,19 @@ import {
 } from "lucide-react";
 import type { McpTool, McpConnectionStatus } from "@shared/schema";
 
-function getPropertyFields(inputSchema: any): Array<{ name: string; type: string; description: string; required: boolean }> {
+function getPropertyFields(inputSchema: any): Array<{ name: string; type: string; description: string; required: boolean; defaultValue?: any; enumValues?: string[] }> {
   if (!inputSchema?.properties) return [];
   const required = inputSchema.required || [];
-  return Object.entries(inputSchema.properties).map(([name, prop]: [string, any]) => ({
-    name,
-    type: prop.type || "string",
-    description: prop.description || "",
-    required: required.includes(name),
-  }));
+  return Object.entries(inputSchema.properties)
+    .filter(([name]) => name !== "tally_url")
+    .map(([name, prop]: [string, any]) => ({
+      name,
+      type: prop.type || "string",
+      description: prop.description || "",
+      required: required.includes(name),
+      defaultValue: prop.default,
+      enumValues: prop.enum,
+    }));
 }
 
 export default function ToolsPage() {
