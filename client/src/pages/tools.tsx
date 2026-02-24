@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -248,7 +247,7 @@ export default function ToolsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 min-h-0">
             <div className="space-y-4 pb-4">
               {selectedTool && getPropertyFields(selectedTool.inputSchema).length > 0 ? (
                 <div className="space-y-4">
@@ -323,7 +322,7 @@ export default function ToolsPage() {
                 </>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <DialogFooter className="gap-2 pt-2">
             <Button variant="secondary" onClick={() => setSelectedTool(null)} data-testid="button-cancel-tool">
