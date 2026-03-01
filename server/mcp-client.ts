@@ -263,7 +263,12 @@ class McpClientManager {
     log(`Executing tool: ${toolName} with args: ${JSON.stringify(mergedArgs)}`, "mcp");
 
     try {
-      const result = await this.client!.callTool({ name: toolName, arguments: mergedArgs });
+      const TOOL_TIMEOUT = 180_000;
+      const result = await this.client!.callTool(
+        { name: toolName, arguments: mergedArgs },
+        undefined,
+        { timeout: TOOL_TIMEOUT }
+      );
       log(`Tool ${toolName} executed successfully`, "mcp");
       this.lastSuccessfulCall = Date.now();
       return result;
@@ -282,7 +287,11 @@ class McpClientManager {
         const reconnected = await this.reconnect();
         if (reconnected && this.client) {
           try {
-            const retryResult = await this.client.callTool({ name: toolName, arguments: mergedArgs });
+            const retryResult = await this.client.callTool(
+              { name: toolName, arguments: mergedArgs },
+              undefined,
+              { timeout: TOOL_TIMEOUT }
+            );
             log(`Tool ${toolName} succeeded after reconnect`, "mcp");
             this.lastSuccessfulCall = Date.now();
             return retryResult;

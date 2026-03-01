@@ -77,6 +77,8 @@ export default function ToolsPage() {
       toast({ title: "Tool executed", description: "Check the result below" });
     },
     onError: (err: Error) => {
+      setExecutionResult({ status: "error", error: err.message });
+      setShowResult(true);
       toast({ title: "Execution failed", description: err.message, variant: "destructive" });
     },
   });
