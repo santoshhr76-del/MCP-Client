@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { loadSettings, saveSettings } from "@/lib/settingsStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +28,10 @@ interface McpConfig {
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [serverUrl, setServerUrl] = useState("");
+  const persisted = loadSettings();
+  const [serverUrl, setServerUrl] = useState(persisted.serverUrl || "");
   const [authToken, setAuthToken] = useState("");
-  const [tallyUrl, setTallyUrl] = useState("");
+  const [tallyUrl, setTallyUrl] = useState(persisted.tallyUrl || "");
   const [hasChanges, setHasChanges] = useState(false);
 
   const configQuery = useQuery<McpConfig>({
@@ -38,8 +40,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (configQuery.data) {
-      setServerUrl(configQuery.data.serverUrl);
-      setTallyUrl(configQuery.data.tallyUrl || "");
+      const saved = loadSettings();
+      setServerUrl(configQuery.data.serverUrl || saved.serverUrl || "");
+      setTallyUrl(configQuery.data.tallyUrl || saved.tallyUrl || "");
       setHasChanges(false);
     }
   }, [configQuery.data]);
@@ -49,7 +52,8 @@ export default function SettingsPage() {
       const res = await apiRequest("POST", "/api/mcp/config", data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      saveSettings({ serverUrl: variables.serverUrl });
       queryClient.invalidateQueries({ queryKey: ["/api/mcp/config"] });
       queryClient.invalidateQueries({ queryKey: ["/api/mcp/status"] });
       setHasChanges(false);
@@ -66,7 +70,8 @@ export default function SettingsPage() {
       const res = await apiRequest("POST", "/api/mcp/config", data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      saveSettings({ tallyUrl: variables.tallyUrl });
       queryClient.invalidateQueries({ queryKey: ["/api/mcp/config"] });
       toast({ title: "Tally URL saved", description: "TallyPrime Gateway URL updated" });
     },
