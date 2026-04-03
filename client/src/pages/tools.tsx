@@ -53,30 +53,59 @@ function getPropertyFields(inputSchema: any): Array<{ name: string; type: string
     }));
 }
 
-const CATEGORIES = [
+type Category = {
+  key: string;
+  label: string;
+  icon: typeof Building2;
+  color: string;
+  bg: string;
+  match: (name: string) => boolean;
+};
+
+const CATEGORIES: Category[] = [
   {
     key: "company",
     label: "Company",
     icon: Building2,
     color: "text-blue-500",
     bg: "bg-blue-500/10",
-    keywords: ["company", "companies"],
+    match: (n) => n.includes("company") || n.includes("companies"),
   },
   {
-    key: "ledger",
-    label: "Ledger",
+    key: "get_ledger",
+    label: "Get Ledger",
     icon: BookOpen,
     color: "text-green-600",
     bg: "bg-green-500/10",
-    keywords: ["ledger", "ledgers"],
+    match: (n) => n.startsWith("get_") && (n.includes("ledger") || n.includes("ledgers")),
   },
   {
-    key: "voucher",
-    label: "Voucher",
+    key: "create_ledger",
+    label: "Create Ledger",
+    icon: BookOpen,
+    color: "text-emerald-600",
+    bg: "bg-emerald-500/10",
+    match: (n) => n.startsWith("create_") && n.includes("ledger"),
+  },
+  {
+    key: "get_voucher",
+    label: "Get Voucher",
     icon: Receipt,
     color: "text-orange-500",
     bg: "bg-orange-500/10",
-    keywords: ["voucher", "vouchers", "outstanding", "payment", "receipt", "sales", "purchase", "journal"],
+    match: (n) =>
+      n.startsWith("get_") &&
+      (n.includes("voucher") || n.includes("outstanding") || n.includes("daybook")),
+  },
+  {
+    key: "create_voucher",
+    label: "Create Voucher",
+    icon: Receipt,
+    color: "text-amber-600",
+    bg: "bg-amber-500/10",
+    match: (n) =>
+      n.startsWith("create_") &&
+      (n.includes("voucher") || n.includes("payment") || n.includes("receipt") || n.includes("journal")),
   },
   {
     key: "reports",
@@ -84,7 +113,12 @@ const CATEGORIES = [
     icon: BarChart3,
     color: "text-purple-500",
     bg: "bg-purple-500/10",
-    keywords: ["trial_balance", "balance_sheet", "profit_loss", "report", "stock", "daybook"],
+    match: (n) =>
+      n.includes("trial_balance") ||
+      n.includes("balance_sheet") ||
+      n.includes("profit_loss") ||
+      n.includes("stock_summary") ||
+      n.includes("report"),
   },
   {
     key: "masters",
@@ -92,16 +126,19 @@ const CATEGORIES = [
     icon: Database,
     color: "text-rose-500",
     bg: "bg-rose-500/10",
-    keywords: ["group", "unit", "godown", "cost_category", "cost_centre", "currency", "budget", "debug"],
+    match: (n) =>
+      n.includes("group") ||
+      n.includes("unit") ||
+      n.includes("godown") ||
+      n.includes("currency") ||
+      n.includes("debug"),
   },
-] as const;
+];
 
-function getToolCategory(toolName: string) {
+function getToolCategory(toolName: string): Category {
   const lower = toolName.toLowerCase();
   for (const cat of CATEGORIES) {
-    if (cat.keywords.some((kw) => lower.includes(kw))) {
-      return cat;
-    }
+    if (cat.match(lower)) return cat;
   }
   return {
     key: "other",
@@ -109,11 +146,12 @@ function getToolCategory(toolName: string) {
     icon: Wrench,
     color: "text-muted-foreground",
     bg: "bg-muted",
+    match: () => false,
   };
 }
 
 function groupTools(tools: McpTool[]) {
-  const groups: Record<string, { category: ReturnType<typeof getToolCategory>; tools: McpTool[] }> = {};
+  const groups: Record<string, { category: Category; tools: McpTool[] }> = {};
   for (const tool of tools) {
     const cat = getToolCategory(tool.name);
     if (!groups[cat.key]) groups[cat.key] = { category: cat, tools: [] };
