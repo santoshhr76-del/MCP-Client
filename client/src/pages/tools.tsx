@@ -144,7 +144,7 @@ const CATEGORIES: Category[] = [
   },
   {
     key: "masters",
-    label: "Masters",
+    label: "Others",
     icon: Database,
     color: "text-rose-500",
     bg: "bg-rose-500/10",
