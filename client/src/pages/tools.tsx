@@ -96,8 +96,7 @@ const CATEGORIES: Category[] = [
     color: "text-orange-500",
     bg: "bg-orange-500/10",
     match: (n) =>
-      n.startsWith("get_") &&
-      (n.includes("voucher") || n.includes("outstanding") || n.includes("daybook")),
+      n.startsWith("get_") && n.includes("voucher"),
   },
   {
     key: "create_voucher",
@@ -140,6 +139,8 @@ const CATEGORIES: Category[] = [
       n.includes("balance_sheet") ||
       n.includes("profit_loss") ||
       n.includes("stock_summary") ||
+      n.includes("daybook") ||
+      n.includes("outstanding") ||
       n.includes("report"),
   },
   {
