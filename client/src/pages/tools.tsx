@@ -79,7 +79,7 @@ const CATEGORIES: Category[] = [
     icon: BookOpen,
     color: "text-green-600",
     bg: "bg-green-500/10",
-    match: (n) => n.startsWith("get_") && (n.includes("ledger") || n.includes("ledgers")),
+    match: (n) => n.startsWith("get_") && (n.includes("ledger") || n.includes("ledgers") || n.includes("group")),
   },
   {
     key: "create_ledger",
@@ -149,8 +149,6 @@ const CATEGORIES: Category[] = [
     color: "text-rose-500",
     bg: "bg-rose-500/10",
     match: (n) =>
-      n.includes("group") ||
-      n.includes("unit") ||
       n.includes("godown") ||
       n.includes("currency") ||
       n.includes("debug"),
