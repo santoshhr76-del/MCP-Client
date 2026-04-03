@@ -30,6 +30,11 @@ import {
   ArrowRight,
   Braces,
   PlugZap,
+  Building2,
+  BookOpen,
+  Receipt,
+  BarChart3,
+  Database,
 } from "lucide-react";
 import type { McpTool, McpConnectionStatus } from "@shared/schema";
 
@@ -46,6 +51,76 @@ function getPropertyFields(inputSchema: any): Array<{ name: string; type: string
       defaultValue: prop.default,
       enumValues: prop.enum,
     }));
+}
+
+const CATEGORIES = [
+  {
+    key: "company",
+    label: "Company",
+    icon: Building2,
+    color: "text-blue-500",
+    bg: "bg-blue-500/10",
+    keywords: ["company", "companies"],
+  },
+  {
+    key: "ledger",
+    label: "Ledger",
+    icon: BookOpen,
+    color: "text-green-600",
+    bg: "bg-green-500/10",
+    keywords: ["ledger", "ledgers"],
+  },
+  {
+    key: "voucher",
+    label: "Voucher",
+    icon: Receipt,
+    color: "text-orange-500",
+    bg: "bg-orange-500/10",
+    keywords: ["voucher", "vouchers", "outstanding", "payment", "receipt", "sales", "purchase", "journal"],
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    icon: BarChart3,
+    color: "text-purple-500",
+    bg: "bg-purple-500/10",
+    keywords: ["trial_balance", "balance_sheet", "profit_loss", "report", "stock", "daybook"],
+  },
+  {
+    key: "masters",
+    label: "Masters",
+    icon: Database,
+    color: "text-rose-500",
+    bg: "bg-rose-500/10",
+    keywords: ["group", "unit", "godown", "cost_category", "cost_centre", "currency", "budget", "debug"],
+  },
+] as const;
+
+function getToolCategory(toolName: string) {
+  const lower = toolName.toLowerCase();
+  for (const cat of CATEGORIES) {
+    if (cat.keywords.some((kw) => lower.includes(kw))) {
+      return cat;
+    }
+  }
+  return {
+    key: "other",
+    label: "Other",
+    icon: Wrench,
+    color: "text-muted-foreground",
+    bg: "bg-muted",
+  };
+}
+
+function groupTools(tools: McpTool[]) {
+  const groups: Record<string, { category: ReturnType<typeof getToolCategory>; tools: McpTool[] }> = {};
+  for (const tool of tools) {
+    const cat = getToolCategory(tool.name);
+    if (!groups[cat.key]) groups[cat.key] = { category: cat, tools: [] };
+    groups[cat.key].tools.push(tool);
+  }
+  const order = [...CATEGORIES.map((c) => c.key), "other"];
+  return order.filter((k) => groups[k]).map((k) => groups[k]);
 }
 
 export default function ToolsPage() {
@@ -90,6 +165,7 @@ export default function ToolsPage() {
       t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (t.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const groupedTools = groupTools(filteredTools);
 
   const handleExecute = () => {
     if (!selectedTool) return;
@@ -176,16 +252,23 @@ export default function ToolsPage() {
         </div>
 
         {toolsQuery.isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i}>
-                <CardContent className="pt-5 pb-4 space-y-3">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-2/3" />
-                  <Skeleton className="h-8 w-20 mt-2" />
-                </CardContent>
-              </Card>
+          <div className="space-y-6">
+            {[1, 2].map((g) => (
+              <div key={g} className="space-y-3">
+                <Skeleton className="h-6 w-32" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i}>
+                      <CardContent className="pt-5 pb-4 space-y-3">
+                        <Skeleton className="h-5 w-40" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-8 w-20 mt-2" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         ) : filteredTools.length === 0 ? (
@@ -198,39 +281,58 @@ export default function ToolsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTools.map((tool) => {
-              const fields = getPropertyFields(tool.inputSchema);
+          <div className="space-y-8">
+            {groupedTools.map(({ category, tools: catTools }) => {
+              const CatIcon = category.icon;
               return (
-                <Card key={tool.name} className="hover-elevate cursor-pointer" onClick={() => openToolDialog(tool)}>
-                  <CardContent className="pt-5 pb-4">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="p-1.5 rounded-md bg-primary/10 shrink-0">
-                          <Wrench className="h-4 w-4 text-primary" />
-                        </div>
-                        <h3 className="font-medium text-sm truncate" data-testid={`text-tool-name-${tool.name}`}>
-                          {tool.name}
-                        </h3>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div key={category.key} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-md ${category.bg}`}>
+                      <CatIcon className={`h-4 w-4 ${category.color}`} />
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-[2rem]">
-                      {tool.description || "No description available"}
-                    </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {fields.length > 0 && (
-                        <Badge variant="secondary">
-                          <Braces className="h-3 w-3 mr-1" />
-                          {fields.length} param{fields.length !== 1 ? "s" : ""}
-                        </Badge>
-                      )}
-                      {fields.length === 0 && (
-                        <Badge variant="secondary">No params</Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                    <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+                      {category.label}
+                    </h2>
+                    <Badge variant="secondary" className="text-[10px] ml-1">
+                      {catTools.length}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {catTools.map((tool) => {
+                      const fields = getPropertyFields(tool.inputSchema);
+                      return (
+                        <Card key={tool.name} className="hover-elevate cursor-pointer" onClick={() => openToolDialog(tool)}>
+                          <CardContent className="pt-5 pb-4">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`p-1.5 rounded-md ${category.bg} shrink-0`}>
+                                  <CatIcon className={`h-4 w-4 ${category.color}`} />
+                                </div>
+                                <h3 className="font-medium text-sm truncate" data-testid={`text-tool-name-${tool.name}`}>
+                                  {tool.name}
+                                </h3>
+                              </div>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-[2rem]">
+                              {tool.description || "No description available"}
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {fields.length > 0 ? (
+                                <Badge variant="secondary">
+                                  <Braces className="h-3 w-3 mr-1" />
+                                  {fields.length} param{fields.length !== 1 ? "s" : ""}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">No params</Badge>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>
