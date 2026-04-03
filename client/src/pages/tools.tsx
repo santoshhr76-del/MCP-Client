@@ -35,6 +35,8 @@ import {
   Receipt,
   BarChart3,
   Database,
+  PackagePlus,
+  PackageSearch,
 } from "lucide-react";
 import type { McpTool, McpConnectionStatus } from "@shared/schema";
 
@@ -106,6 +108,26 @@ const CATEGORIES: Category[] = [
     match: (n) =>
       n.startsWith("create_") &&
       (n.includes("voucher") || n.includes("payment") || n.includes("receipt") || n.includes("journal")),
+  },
+  {
+    key: "get_stock",
+    label: "Get Stock Item",
+    icon: PackageSearch,
+    color: "text-cyan-600",
+    bg: "bg-cyan-500/10",
+    match: (n) =>
+      n.startsWith("get_") &&
+      (n.includes("stock_item") || n.includes("stock_group") || n.includes("_unit")),
+  },
+  {
+    key: "create_stock",
+    label: "Create Stock Item",
+    icon: PackagePlus,
+    color: "text-teal-600",
+    bg: "bg-teal-500/10",
+    match: (n) =>
+      n.startsWith("create_") &&
+      (n.includes("stock") || n.includes("_unit")),
   },
   {
     key: "reports",
